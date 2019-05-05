@@ -9,28 +9,28 @@
           el-row(type="flex" justify="center")
             el-col.filter-box(:span="4")
               h4 受災地區:
-              el-select(v-model="areaValue" placeholder="請選擇")
+              el-select(v-model="areaValue" placeholder="請選擇" clearable @change="filterData('area')")
                 el-option(
-                  v-for="item in areaOptions"
-                  :key="item.value"
-                  :label="item.locale"
-                  :value="item.value"
+                  v-for="(item, index) in areaOptions"
+                  :key="index"
+                  :label="item"
+                  :value="item"
                 )
             el-col.filter-box(:span="4")
               h4 災害類型:
-              el-select(v-model="pNameValue" placeholder="請選擇")
+              el-select(v-model="pNameValue" placeholder="請選擇" clearable @change="filterData('pName')")
                 el-option(
-                  v-for="item in pNameOptions"
-                  :key="item.value"
-                  :label="item.pName"
-                  :value="item.value"
+                  v-for="(item, index) in pNameOptions"
+                  :key="index"
+                  :label="item"
+                  :value="item"
                 )
             el-col.filter-box(:span="4")
               h4 是否處理完成:
-              el-select(v-model="CaseCompleteValue" placeholder="請選擇")
+              el-select(v-model="CaseCompleteValue" placeholder="請選擇" clearable @change="filterData('CaseComplete')")
                 el-option(
-                  v-for="item in CaseCompleteOptions"
-                  :key="item.value"
+                  v-for="(item, index) in CaseCompleteOptions"
+                  :key="index"
                   :label="item.CaseComplete"
                   :value="item.value"
                 )
@@ -40,7 +40,7 @@
                 span {{ total }}
                 |筆資料
           el-row.typhoon-main(type="flex" justify="space-between" v-loading="loading")
-            el-col(:span="11" v-for="tyData in filterData[currentPage]"  :key="tyData.CaseID")
+            el-col(:span="11" v-for="tyData in pageData[currentPage]"  :key="tyData.CaseID")
               el-card.box-card
                 .typhoon-name(slot='header')
                   span {{ tyData.DPName }}
@@ -64,8 +64,8 @@
           el-pagination(
             background
             layout="prev, pager, next"
-            page-size="10"
-            :total="filterData.length*10"
+            :page-size="10"
+            :total="pageData.length*10"
             @current-change="currentChange"
             )
 
@@ -81,40 +81,19 @@ export default {
   name: 'App',
   data () {
     return {
-      areaOptions: [
-        {locale: '中正區', value: '1'},
-        {locale: '大同區', value: '2'},
-        {locale: '中山區', value: '3'},
-        {locale: '松山區', value: '4'},
-        {locale: '大安區', value: '5'},
-        {locale: '萬華區', value: '6'},
-        {locale: '信義區', value: '7'},
-        {locale: '士林區', value: '8'},
-        {locale: '北投區', value: '9'},
-        {locale: '內湖區', value: '10'},
-        {locale: '南港區', value: '11'}],
+      areaOptions: ['中正區', '大同區', '中山區', '松山區', '大安區', '萬華區', '信義區', '士林區', '北投區', '內湖區', '南港區'],
       areaValue: '',
-      pNameOptions: [
-        {pName: '民生、基礎設施災情', value: '1'},
-        {pName: '積淹水災情', value: '2'},
-        {pName: '道路、隧道災情', value: '3'},
-        {pName: '路樹災情', value: '4'},
-        {pName: '土石災情', value: '5'},
-        {pName: '環境汙染', value: '6'},
-        {pName: '橋梁災情', value: '7'},
-        {pName: '車輛及交通事故', value: '8'},
-        {pName: '廣告招牌災情', value: '9'},
-        {pName: '其他災情', value: '10'}
-      ],
+      pNameOptions: ['民生、基礎設施災情', '積淹水災情', '道路、隧道災情', '路樹災情', '土石災情', '環境汙染', '橋梁災情', '車輛及交通事故', '廣告招牌災情', '其他災情'],
       pNameValue: '',
       CaseCompleteOptions: [
-        {CaseComplete: '已經處理完成', value: '1'},
-        {CaseComplete: '尚未處理完成', value: '2'}
+        {CaseComplete: '已經處理完成', value: true},
+        {CaseComplete: '尚未處理完成', value: false}
       ],
       CaseCompleteValue: '',
       currentPage: 0,
       loading: true,
       typhoonData: [],
+      tempData: [],
       total: ''
     }
   },
@@ -123,6 +102,7 @@ export default {
   },
   methods: {
     getTyphoonData () {
+      const vm = this
       this.axios.post('https://typhoonapi.yosgo.com/graphql', {
         query: `
         {
@@ -142,12 +122,13 @@ export default {
         }
       }`
       }).then((res) => {
-        this.loading = false
+        vm.loading = false
         res.data.data.getDisasterSummary.items.forEach((item) => {
           item.CaseTime = moment(item.CaseTime).locale('zh-tw').format('LLL')
         })
-        this.typhoonData = res.data.data.getDisasterSummary.items
-        this.total = res.data.data.getDisasterSummary.total
+        vm.typhoonData = res.data.data.getDisasterSummary.items
+        vm.tempData = vm.typhoonData
+        vm.total = res.data.data.getDisasterSummary.total
         console.log(res)
       })
     },
@@ -155,13 +136,89 @@ export default {
       const vm = this
       // 直接把當前頁面丟進去
       vm.currentPage = index - 1
+    },
+    filterData (type) {
+      const vm = this
+      let filterValue = ''
+      let filterType = ''
+
+      switch (type) {
+        case 'area':
+          filterValue = vm.areaValue
+          filterType = 'CaseLocationDistrict'
+
+          vm.tempData = vm.typhoonData.filter((item) => {
+            return item[filterType].match(filterValue)
+          })
+
+          // 處理另外兩個選項
+          if (vm.pNameValue !== '') {
+            vm.tempData = vm.tempData.filter((item) => {
+              return item.PName.match(vm.pNameValue)
+            })
+          }
+
+          if (vm.CaseCompleteValue !== '') {
+            vm.tempData = vm.tempData.filter((item) => {
+              return item.CaseComplete === vm.CaseCompleteValue
+            })
+          }
+          break
+        case 'pName':
+          filterValue = vm.pNameValue
+          filterType = 'PName'
+
+          vm.tempData = vm.typhoonData.filter((item) => {
+            return item[filterType].match(filterValue)
+          })
+
+          // 處理另外兩個選項
+          if (vm.areaValue !== '') {
+            vm.tempData = vm.tempData.filter((item) => {
+              return item.CaseLocationDistrict.match(vm.areaValue)
+            })
+          }
+
+          if (vm.CaseCompleteValue !== '') {
+            vm.tempData = vm.tempData.filter((item) => {
+              return item.CaseComplete === vm.CaseCompleteValue
+            })
+          }
+          break
+        case 'CaseComplete':
+          filterValue = vm.CaseCompleteValue
+          filterType = 'CaseComplete'
+
+          // 處理清空後變成空字串就全部顯示
+          vm.tempData = vm.typhoonData.filter((item) => {
+            if (typeof filterValue !== 'string') {
+              return item[filterType] === filterValue
+            } else {
+              return true
+            }
+          })
+
+          // 處理另外兩個選項
+          if (vm.areaValue !== '') {
+            vm.tempData = vm.tempData.filter((item) => {
+              return item.CaseLocationDistrict.match(vm.areaValue)
+            })
+          }
+
+          if (vm.pNameValue !== '') {
+            vm.tempData = vm.tempData.filter((item) => {
+              return item.PName.match(vm.pNameValue)
+            })
+          }
+          break
+      }
     }
   },
   computed: {
-    filterData () {
+    pageData () {
       const vm = this
       const newData = []
-      vm.typhoonData.forEach((item, i) => {
+      vm.tempData.forEach((item, i) => {
         // 每10筆推一個空陣列
         if (i % 10 === 0) {
           newData.push([])
